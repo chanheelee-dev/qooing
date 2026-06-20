@@ -25,7 +25,8 @@
 
 | 항목 | 결정 |
 |---|---|
-| 위키 구축 | **agent skill로 간소화** (코드 X): 주제선정 → fetch → consolidation 절차를 에이전트가 수행 |
+| 위키 구축 | **agent skill 중심** + 보조 코드: 주제선정 → fetch → consolidation을 에이전트가 수행하되, fetch·index 생성 등은 `knowledge_producer/`의 Python 코드로 보조 |
+| producer 환경 | `knowledge_producer/`는 backend와 **분리된 uv 워크스페이스 멤버** (자체 pyproject·의존성). build-time 전용, backend 런타임과 의존성 격리 |
 | 출처 | 공신력 있는 공개 가이드 + 직접 모은 문서 (`sources/`) — 플러그인 가능하게 |
 | 검색 | 임베딩 없음. Pydantic AI 에이전트 + `list_wiki`/`read_wiki` 툴로 LLM이 직접 탐색 |
 | LLM | BYOM via Pydantic AI (모델은 env로 지정) |
@@ -44,18 +45,26 @@
 
 ```
 qooing/
-  pyproject.toml            # uv 워크스페이스 (backend + knowledge_base/pipeline)
+  pyproject.toml            # uv 워크스페이스 (backend + knowledge_producer)
   README.md                 # description/배지/실행법
   LICENSE                   # AGPL-3.0
-  knowledge_base/           # 위키 지식베이스 일체
-    references/             # 참조 자료 (공신력 있는 공개 가이드 등)
-    sources/                # 직접 모은 출처 문서 (스킬의 입력)
-    wiki/                   # 생성된 위키 (마크다운, frontmatter 포함) — 커밋됨
+  knowledge_base/           # 위키 지식베이스 = 번들 (concept 전용)
+                            #   포맷 스펙: docs/specs/02-knowledge-base-spec.md
+    index.md                # 필수. 번들 루트 디렉토리 목록.
+    references/             # type: Reference — 공신력 있는 공개 가이드 등 참조 자료
+      index.md              #   필수.
+      log.md                #   필수. 신뢰성 결정 audit log.
+    sources/                # type: Source — 직접 모은 출처 문서 (스킬의 입력)
+      index.md              #   필수.
+    wiki/                   # type: Wiki — 생성된 위키 (마크다운, frontmatter 포함) — 커밋됨
+      index.md              #   필수.
       <slug>.md
-    pipeline/               # 위키 구축 = agent skill로 간소화 (코드 X)
-      topics.yaml           # 큐레이션한 주제 목록
-      SKILL.md              # 주제→fetch(references/·sources/)→consolidation→wiki/*.md 작성 절차
-  backend/
+  knowledge_producer/       # 위키 구축(producer) — 번들 밖. 별도 uv 워크스페이스 멤버
+    pyproject.toml          #   자체 의존성 (fetch·파서 등, backend와 격리)
+    topics.yaml             #   큐레이션한 주제 목록
+    SKILL.md                #   주제→fetch(references/·sources/)→consolidation→wiki/*.md 작성 절차
+    src/                    #   보조 코드 (fetch, index.md 생성 등) — 구현 TBD
+  backend/                  # 별도 uv 워크스페이스 멤버 (런타임)
     app/
       main.py               # FastAPI 앱
       api/                  # 엔드포인트 — TBD (미정)
@@ -72,15 +81,18 @@ qooing/
     specs/                  # 설계 스펙 (본 문서)
 ```
 
-> `knowledge_base/` 안의 `references/` vs `sources/` 구분(참조 자료 / 직접 모은 자료)은
-> 실행 단계에서 사용자 의도에 맞춰 확정. 둘 다 파이프라인의 fetch 입력.
+> `knowledge_base/`의 포맷(디렉토리·frontmatter·index/log 규칙)은 OKF 기반 스펙
+> `docs/specs/02-knowledge-base-spec.md`가 권위를 가진다.
+> `references/`(type: Reference, 공신력 있는 공개 가이드) vs `sources/`(type: Source, 직접 모은 자료)는
+> 둘 다 producer의 fetch 입력이며, `knowledge_producer/`는 concept이 아니므로 번들(`knowledge_base/`) 밖 repo 루트에 둔다.
 
 ## 컴포넌트 설계
 
-### 1. 위키 구축 = **agent skill** (`knowledge_base/pipeline/`, 코드 아님)
-- 코드로 된 fetch/consolidate 파이프라인을 **만들지 않음.** 대신 스킬 절차를 따라 에이전트가 수행.
+### 1. 위키 구축 = **agent skill 중심 + 보조 코드** (`knowledge_producer/`, 번들 밖, 별도 uv 워크스페이스 멤버)
+- consolidation 등 판단이 필요한 단계는 **스킬 절차를 따라 에이전트가 수행.** fetch·`index.md` 생성처럼 결정적인 단계는 `src/`의 Python 보조 코드로 처리(구현 TBD).
+- backend와 의존성을 격리하기 위해 자체 `pyproject.toml`을 가진 워크스페이스 멤버로 둔다. build-time 전용이라 backend 런타임 이미지에 섞이지 않는다.
 - `topics.yaml`: 큐레이션한 주제 목록 (slug, 제목, 키워드, 출처 힌트).
-- `SKILL.md`: "주제 1개 → `references/`·`sources/`에서 자료 수집 → consolidation → `knowledge_base/wiki/<slug>.md` 작성(frontmatter: `title`, `sources`, `generated_at`)" 절차 정의.
+- `SKILL.md`: "주제 1개 → `references/`·`sources/`에서 자료 수집 → consolidation → `knowledge_base/wiki/<slug>.md` 작성" 절차 정의. frontmatter는 KB 스펙(`docs/specs/02-knowledge-base-spec.md`)을 따름: `type: Wiki`(필수), `title`, `description`, `sources`, `timestamp`. `index.md`도 갱신.
 - 사용: 위키가 필요하면 그 스킬을 호출해 주제별로 문서를 생성·커밋. (자동화 코드는 추후 필요 시.)
 
 ### 2. 백엔드 (`backend/`, FastAPI + Pydantic AI)
