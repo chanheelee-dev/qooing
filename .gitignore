@@ -19,3 +19,13 @@ venv/
 
 # claude
 .claude/settings.local.json
+
+# Python and frontend builds
+dist/
+*.egg-info/
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+coverage/

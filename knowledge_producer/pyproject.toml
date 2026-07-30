@@ -1,0 +1,19 @@
+[project]
+name = "qooing-producer"
+version = "0.1.0"
+description = "Deterministic validation and indexing for qooing knowledge bundles"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+  "python-frontmatter>=1.3,<2",
+  "pyyaml>=6.0,<7",
+]
+
+[project.scripts]
+qooing-kb = "qooing_producer.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qooing_producer"]

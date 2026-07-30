@@ -1,15 +1,36 @@
 # qooing — 기술스택·방법론·주요 기능 결정
 
 > 본 문서는 구현 계획이 아니라 **기술스택 / 방법론 / 주요 기능**까지만 확정한 결정 문서.
-> 세부 구현(API 엔드포인트, 패널 내부, 위키 구축 자동화)은 의도적으로 비워둠.
+> 세부 구현(API 엔드포인트, 웹앱 내부, 위키 구축 자동화)은 의도적으로 비워둠.
+> 실행 가능한 스캐폴드의 확정된 contract는
+> [2026-07-28 실행 가능 스캐폴드 명세](2026-07-28-project-scaffold.md)를 따른다.
 
-## Context
+## About Project
 
-`chanheelee-dev/qooing` 는 public repo (AGPL-3.0, Python `.gitignore`, README 포함).
+- repo: `chanheelee-dev/qooing`
+- description: "미리 구축(pre-built)된 육아 자료를 근거로 답하는 LLM 채팅 어시스턴트."
+- persona:
+  - 관리자 (Admin): 육아 자료 구축, 관리
+  - 유저 (User): 육아 자료 조회/검색, LLM 기반 질문
+- 주요 기능 (웹앱)
+  - 자료 조회: Obsidian처럼 잘 렌더링된 md을 file tree에서 선택해서 읽어볼 수 있다.
+  - LLM 기반 질문: 채팅 화면에서 LLM과 육아와 관련된 정보를 질문할 수 있다.
+  - Customization: 아기의 정보를 입력할 수 있다. 이 정보를 활용한 답변을 받는다.
 
-**제품 정체성:** "미리 구축(pre-built)된 육아 위키를 근거로 답하는 LLM 채팅 어시스턴트."
-브레인스토밍으로 확정된 모양:
+## 요구사항
 
+### Admin
+
+- 육아 자료의 구축/관리는 크게 3가지로 분류할 수 있다.
+  - 수집(Capture)
+- 공신력 있는 자료인지 판단하고 그 근거를 기록한다. Agent가 제안할 수 있으나 최종 판단은 관리자가 한다.
+- Agent을 이용한 검색 방식, URL 전달 방식, 텍스트 전달 방식이 가능하다.
+- 자료의 포맷은 주로 markdown이며, 어느 정도 일관성이 있으면서도 유연해야 한다.
+
+### User
+
+- 웹앱은 구축된 위키를 탐색하거나 검색하기 위한 도구
+  - 문서 조회: 읽기 전용으로만
 - 위키는 **오프라인 배치**로 미리 구축: (1) 내가 주제 선정 → (2) 신뢰 출처에서 fetch
   (공신력 있는 공개 가이드 + 내가 모아둔 문서) → (3) LLM이 consolidation → (4) 마크다운으로 저장.
 - 웹앱은 **3패널 인터랙티브 앱**:
@@ -43,13 +64,12 @@
 
 ## 디렉터리 구조 (모노레포)
 
-```
+```text
 qooing/
   pyproject.toml            # uv 워크스페이스 (backend + knowledge_producer)
   README.md                 # description/배지/실행법
   LICENSE                   # AGPL-3.0
   knowledge_base/           # 위키 지식베이스 = 번들 (concept 전용)
-                            #   포맷 스펙: docs/specs/02-knowledge-base-spec.md
     index.md                # 필수. 번들 루트 디렉토리 목록.
     references/             # type: Reference — 공신력 있는 공개 가이드 등 참조 자료
       index.md              #   필수.
@@ -89,6 +109,7 @@ qooing/
 ## 컴포넌트 설계
 
 ### 1. 위키 구축 = **agent skill 중심 + 보조 코드** (`knowledge_producer/`, 번들 밖, 별도 uv 워크스페이스 멤버)
+
 - consolidation 등 판단이 필요한 단계는 **스킬 절차를 따라 에이전트가 수행.** fetch·`index.md` 생성처럼 결정적인 단계는 `src/`의 Python 보조 코드로 처리(구현 TBD).
 - backend와 의존성을 격리하기 위해 자체 `pyproject.toml`을 가진 워크스페이스 멤버로 둔다. build-time 전용이라 backend 런타임 이미지에 섞이지 않는다.
 - `topics.yaml`: 큐레이션한 주제 목록 (slug, 제목, 키워드, 출처 힌트).
@@ -96,9 +117,10 @@ qooing/
 - 사용: 위키가 필요하면 그 스킬을 호출해 주제별로 문서를 생성·커밋. (자동화 코드는 추후 필요 시.)
 
 ### 2. 백엔드 (`backend/`, FastAPI + Pydantic AI)
+
 - **API 엔드포인트는 미정(TBD)** — 실행 단계에서 확정. 기능 요구만 고정:
   - file-explore용: 위키 목록·본문 제공 (읽기 전용).
-  - chat용: **SSE 스트리밍** 채팅. 요청에 `messages[]` + 클라가 주입한 `baby_info` 포함.
+  - chat용: **SSE 스트리밍** 채팅. 요청에 현재 `prompt` + 클라가 주입한 `baby_info` 포함.
 - 채팅 동작:
   - 시스템 프롬프트에 아기정보 주입.
   - 에이전트가 `list_wiki()` / `read_wiki(slug)` 툴로 위키를 직접 탐색해 근거 확보 ("LLM이 알아서 검색").
@@ -107,6 +129,7 @@ qooing/
 - 무상태: 사용자/아기 DB 없음.
 
 ### 3. 프론트엔드 (`frontend/`, React + Vite SPA)
+
 - **확정: 3패널 레이아웃** (file-explore | chat | baby info). 그 외 구현은 **TBD**.
 - 각 패널의 역할(레이아웃 의도)만 고정:
   - **file-explore**: 위키 문서 읽기 전용 탐색·열람.
@@ -115,5 +138,6 @@ qooing/
 - 컴포넌트 구조·상태관리·API 연동 방식은 실행 단계에서 확정.
 
 ### 4. LLM 레이어 (Pydantic AI)
+
 - 단일 에이전트 정의, 모델은 설정 주입 → 어떤 provider든 교체 가능(BYOM).
 - 툴: `list_wiki()`, `read_wiki(slug)`. consolidation과 chat 양쪽에서 재사용.

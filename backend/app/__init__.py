@@ -1,0 +1,1 @@
+"""qooing FastAPI application."""

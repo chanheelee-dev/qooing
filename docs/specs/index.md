@@ -2,6 +2,7 @@
 
 * [01 — 설계 개요](01-design-overview.md) - qooing의 기술스택·방법론·주요 기능 결정 문서
 * [02 — Knowledge Base 포맷 스펙](02-knowledge-base-spec.md) - `knowledge_base/` 번들의 디렉토리·frontmatter·index/log 규칙 (OKF 기반)
+* [2026-07-28 — 실행 가능 스캐폴드](2026-07-28-project-scaffold.md) - API·agent·UI·container의 결정 완료 명세
 
 # 규칙
 
