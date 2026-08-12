@@ -10,7 +10,7 @@ def write_wiki(root: Path) -> None:
     (root / "newborn-sleep.md").write_text(
         "---\ntype: Wiki\ntitle: 신생아 수면 기초\n"
         "description: 개발 흐름을 확인하기 위한 예시 문서\n"
-        "sources: [/references/example-guidance.md]\n---\n# 수면\n",
+        "sources: [/sources/example-guidance.md]\n---\n# 수면\n",
         encoding="utf-8",
     )
 

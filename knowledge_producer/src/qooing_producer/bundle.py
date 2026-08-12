@@ -4,11 +4,13 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path, PurePosixPath
+from typing import TypeGuard
 
 import frontmatter
 
 REQUIRED_DIRECTORIES = ("references", "sources", "wiki")
 EXPECTED_TYPES = {"references": "Reference", "sources": "Source", "wiki": "Wiki"}
+RELIABILITY_LEVELS = ("확실", "유력", "참고")
 KEBAB_CASE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 DATE_HEADING = re.compile(r"^## (\d{4}-\d{2}-\d{2})$", re.MULTILINE)
@@ -52,6 +54,20 @@ def _resolve_bundle_path(root: Path, source: str, current: Path) -> Path | None:
     except ValueError:
         return Path("__outside_bundle__")
     return resolved
+
+
+def _is_concept_link(value: object, directory: str) -> TypeGuard[str]:
+    if not isinstance(value, str):
+        return False
+    prefix = f"/{directory}/"
+    filename = value.removeprefix(prefix)
+    return (
+        value.startswith(prefix)
+        and "/" not in filename
+        and filename not in {"index.md", "log.md"}
+        and filename.endswith(".md")
+        and KEBAB_CASE.fullmatch(filename.removesuffix(".md")) is not None
+    )
 
 
 def validate_bundle(root: Path) -> list[Violation]:
@@ -128,7 +144,7 @@ def validate_bundle(root: Path) -> list[Violation]:
 
         for field in ("title", "description", "timestamp"):
             if not post.get(field):
-                violations.append(Violation(relative, f"missing recommended '{field}' frontmatter"))
+                violations.append(Violation(relative, f"missing required '{field}' frontmatter"))
         timestamp = post.get("timestamp")
         if timestamp and not isinstance(timestamp, (str, date, datetime)):
             violations.append(Violation(relative, "timestamp must be ISO 8601"))
@@ -138,15 +154,40 @@ def validate_bundle(root: Path) -> list[Violation]:
             except ValueError:
                 violations.append(Violation(relative, "timestamp must be ISO 8601"))
 
+        if concept_type == "Reference":
+            if not post.get("resource"):
+                violations.append(Violation(relative, "missing required 'resource' frontmatter"))
+            reliability = post.get("reliability")
+            if not reliability:
+                violations.append(Violation(relative, "missing required 'reliability' frontmatter"))
+            elif reliability not in RELIABILITY_LEVELS:
+                allowed = ", ".join(RELIABILITY_LEVELS)
+                violations.append(Violation(relative, f"reliability must be one of: {allowed}"))
+
+        if concept_type == "Source":
+            if not post.get("resource"):
+                violations.append(Violation(relative, "missing required 'resource' frontmatter"))
+            reference = post.get("reference")
+            if not _is_concept_link(reference, "references"):
+                violations.append(
+                    Violation(relative, "reference must be a bundle-root /references/ path")
+                )
+            else:
+                target = _resolve_bundle_path(root, reference, path)
+                if target is not None and not target.is_file():
+                    violations.append(Violation(relative, f"reference does not exist: {reference}"))
+
         if concept_type == "Wiki":
             sources = post.get("sources", [])
             if not isinstance(sources, list):
                 violations.append(Violation(relative, "sources must be a list"))
+            elif not sources:
+                violations.append(Violation(relative, "sources must contain at least one Source"))
             else:
                 for source in sources:
-                    if not isinstance(source, str) or not source.startswith("/"):
+                    if not _is_concept_link(source, "sources"):
                         violations.append(
-                            Violation(relative, "wiki sources must use bundle-root absolute paths")
+                            Violation(relative, "wiki sources must use bundle-root /sources/ paths")
                         )
                         continue
                     target = _resolve_bundle_path(root, source, path)
@@ -162,6 +203,31 @@ def validate_bundle(root: Path) -> list[Violation]:
 
 
 def _index_for(directory: Path, root: Path) -> str:
+    if directory == root / "references":
+        groups: dict[str, list[tuple[str, str]]] = {level: [] for level in RELIABILITY_LEVELS}
+        groups["미분류"] = []
+        for child in sorted(directory.glob("*.md")):
+            if child.name in {"index.md", "log.md"}:
+                continue
+            try:
+                post = frontmatter.load(child)
+            except Exception:
+                continue
+            label = str(post.get("title") or child.stem)
+            description = str(post.get("description") or "")
+            suffix = f" - {description}" if description else ""
+            reliability = str(post.get("reliability") or "미분류")
+            group = reliability if reliability in groups else "미분류"
+            groups[group].append((label.casefold(), f"* [{label}]({child.name}){suffix}"))
+
+        sections: list[str] = []
+        for level in (*RELIABILITY_LEVELS, "미분류"):
+            entries = groups[level]
+            if entries or level in RELIABILITY_LEVELS:
+                body = "\n".join(value for _, value in sorted(entries)) or "(없음)"
+                sections.append(f"# {level}\n\n{body}")
+        return "\n\n".join(sections) + "\n"
+
     title = "Knowledge Bundle" if directory == root else directory.name.replace("-", " ").title()
     entries: list[tuple[str, str]] = []
     for child in sorted(directory.iterdir()):

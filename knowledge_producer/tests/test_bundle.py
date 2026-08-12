@@ -21,16 +21,23 @@ def valid_bundle(root: Path) -> Path:
         "# References Update Log\n\n## 2026-07-28\n"
         "* **Reliability**: Guide accepted as scaffold evidence.\n",
     )
-    write(root / "sources/index.md", "# Sources\n")
+    write(root / "sources/index.md", "# Sources\n\n* [Guide](guide.md) - Captured guide\n")
     write(root / "wiki/index.md", "# Wiki\n\n* [Sleep](sleep.md) - Sleep basics\n")
     write(
         root / "wiki/sleep.md",
         "---\ntype: Wiki\ntitle: Sleep\ndescription: Sleep basics\n"
-        "sources: [/references/guide.md]\ntimestamp: 2026-07-28T00:00:00Z\n---\nBody\n",
+        "sources: [/sources/guide.md]\ntimestamp: 2026-07-28T00:00:00Z\n---\nBody\n",
     )
     write(
         root / "references/guide.md",
-        "---\ntype: Reference\ntitle: Guide\ndescription: Trusted guide\n"
+        "---\ntype: Reference\ntitle: Publisher\ndescription: Trusted publisher\n"
+        "resource: https://example.com\nreliability: 확실\n"
+        "timestamp: 2026-07-28T00:00:00Z\n---\nPublisher\n",
+    )
+    write(
+        root / "sources/guide.md",
+        "---\ntype: Source\ntitle: Guide\ndescription: Captured guide\n"
+        "resource: https://example.com/guide\nreference: /references/guide.md\n"
         "timestamp: 2026-07-28T00:00:00Z\n---\nGuide\n",
     )
     return root
@@ -68,13 +75,91 @@ def test_generate_indexes_is_stable_and_alphabetical(tmp_path: Path) -> None:
     assert first.index("[Alpha]") < first.index("[Sleep]")
 
 
+def test_generate_reference_index_groups_by_reliability(tmp_path: Path) -> None:
+    root = valid_bundle(tmp_path)
+    write(
+        root / "references/advisory.md",
+        "---\ntype: Reference\ntitle: Advisory\ndescription: Supporting publisher\n"
+        "resource: https://advisory.example.com\nreliability: 참고\n"
+        "timestamp: 2026-07-28T00:00:00Z\n---\nAdvisory\n",
+    )
+
+    generate_indexes(root)
+    index = (root / "references/index.md").read_text(encoding="utf-8")
+
+    assert index.index("# 확실") < index.index("# 유력") < index.index("# 참고")
+    assert index.index("[Publisher]") < index.index("# 유력")
+    assert index.index("[Advisory]") > index.index("# 참고")
+
+
 def test_validation_reports_broken_wiki_source(tmp_path: Path) -> None:
+    root = valid_bundle(tmp_path)
+    (root / "sources/guide.md").unlink()
+
+    messages = [violation.message for violation in validate_bundle(root)]
+
+    assert any("source does not exist" in message for message in messages)
+
+
+def test_validation_requires_wiki_sources_to_be_concrete_sources(tmp_path: Path) -> None:
+    root = valid_bundle(tmp_path)
+    wiki = root / "wiki/sleep.md"
+    wiki.write_text(
+        wiki.read_text(encoding="utf-8").replace("/sources/guide.md", "/references/guide.md"),
+        encoding="utf-8",
+    )
+
+    messages = [violation.message for violation in validate_bundle(root)]
+
+    assert any("/sources/ paths" in message for message in messages)
+
+
+def test_validation_requires_at_least_one_wiki_source(tmp_path: Path) -> None:
+    root = valid_bundle(tmp_path)
+    wiki = root / "wiki/sleep.md"
+    wiki.write_text(
+        wiki.read_text(encoding="utf-8").replace("sources: [/sources/guide.md]", "sources: []"),
+        encoding="utf-8",
+    )
+
+    messages = [violation.message for violation in validate_bundle(root)]
+
+    assert any("at least one Source" in message for message in messages)
+
+
+def test_validation_checks_reference_reliability(tmp_path: Path) -> None:
+    root = valid_bundle(tmp_path)
+    reference = root / "references/guide.md"
+    reference.write_text(
+        reference.read_text(encoding="utf-8").replace("reliability: 확실", "reliability: unknown"),
+        encoding="utf-8",
+    )
+
+    messages = [violation.message for violation in validate_bundle(root)]
+
+    assert any("reliability must be one of" in message for message in messages)
+
+
+def test_validation_reports_broken_source_reference(tmp_path: Path) -> None:
     root = valid_bundle(tmp_path)
     (root / "references/guide.md").unlink()
 
     messages = [violation.message for violation in validate_bundle(root)]
 
-    assert any("source does not exist" in message for message in messages)
+    assert any("reference does not exist" in message for message in messages)
+
+
+def test_validation_rejects_index_as_source_provenance(tmp_path: Path) -> None:
+    root = valid_bundle(tmp_path)
+    source = root / "sources/guide.md"
+    source.write_text(
+        source.read_text(encoding="utf-8").replace("/references/guide.md", "/references/index.md"),
+        encoding="utf-8",
+    )
+
+    messages = [violation.message for violation in validate_bundle(root)]
+
+    assert any("bundle-root /references/ path" in message for message in messages)
 
 
 def test_validation_reports_non_iso_timestamp(tmp_path: Path) -> None:

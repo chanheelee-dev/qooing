@@ -9,7 +9,7 @@ def write_wiki(root: Path, slug: str = "sleep", title: str = "Sleep") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         f"---\ntype: Wiki\ntitle: {title}\ndescription: Basics\n"
-        "sources: [/references/guide.md]\n---\n# Body\n",
+        "sources: [/sources/guide.md]\n---\n# Body\n",
         encoding="utf-8",
     )
 
@@ -30,7 +30,7 @@ def test_read_returns_metadata_and_body(tmp_path: Path) -> None:
 
     assert document.slug == "sleep"
     assert document.type == "Wiki"
-    assert document.sources == ["/references/guide.md"]
+    assert document.sources == ["/sources/guide.md"]
     assert document.body == "# Body"
 
 
