@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write Wiki"
+  short_description: "Write sourced wiki concepts from evidence"
+  default_prompt: "Use $write-wiki to create or update a qooing wiki concept from captured sources."

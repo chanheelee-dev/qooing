@@ -1,0 +1,4 @@
+interface:
+  display_name: "Register Reference"
+  short_description: "Review and register trusted publishers"
+  default_prompt: "Use $register-reference to review and register a publisher in the qooing knowledge bundle."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fetch Source"
+  short_description: "Capture documents with publisher provenance"
+  default_prompt: "Use $fetch-source to capture a concrete document in the qooing knowledge bundle."
