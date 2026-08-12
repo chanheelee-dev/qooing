@@ -3,7 +3,7 @@ type: Wiki
 title: 신생아 수면 기초
 description: 개발 흐름을 확인하기 위한 예시 문서
 sources:
-  - /references/example-guidance.md
+  - /sources/example-guidance.md
 tags: [신생아, 수면, scaffold]
 timestamp: 2026-07-28T00:00:00Z
 ---
@@ -16,4 +16,4 @@ timestamp: 2026-07-28T00:00:00Z
 
 ## 출처
 
-* [Example Infant Care Guidance](/references/example-guidance.md)
+* [Example Infant Care Guidance](/sources/example-guidance.md)
