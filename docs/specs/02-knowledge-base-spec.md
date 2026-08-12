@@ -10,7 +10,8 @@
 
 ### 1.1 Minimally Opinionated (최소 규정)
 
-요구사항은 단 하나 — 모든 concept에 `type` 필드. 나머지는 전부 producer 재량이다.
+기본 OKF interoperability 요구사항은 모든 concept의 `type` 필드 하나다. qooing의 실행 가능한
+profile은 육아 지식의 provenance를 검증하기 위해 §4.2와 타입별 필드를 추가로 요구한다.
 
 - 어떤 type이 존재하는지 (taxonomy 강제 없음)
 - 어떤 추가 frontmatter 필드를 둘지
@@ -53,7 +54,7 @@ qooing에서는 `knowledge_producer/`(또는 손)가 produce하고, 백엔드의
 ```
 knowledge_base/                  # ← 번들 (concept 전용)
 ├── index.md                     # 필수. 번들 루트 디렉토리 목록.
-├── references/                  # type: Reference — 공신력 있는 공개 가이드 등 참조 자료
+├── references/                  # type: Reference — 발행처 단위 신뢰 registry
 │   ├── index.md                 # 필수.
 │   ├── log.md                   # 필수. 신뢰성 결정 audit log.
 │   └── <concept>.md
@@ -74,11 +75,11 @@ knowledge_base/                  # ← 번들 (concept 전용)
 ```yaml
 ---
 type: <Type name>                  # REQUIRED
-title: <표시 이름>                  # 권장
-description: <한 줄 요약>           # 권장
-resource: <원본 asset의 canonical URI>   # 권장 (추상 개념이면 생략)
-tags: [<tag>, <tag>, …]            # 권장
-timestamp: <ISO 8601 datetime>     # 권장 (마지막 의미있는 변경 시각)
+title: <표시 이름>                  # qooing 필수
+description: <한 줄 요약>           # qooing 필수
+resource: <원본 asset의 canonical URI>   # 타입에 따라 필수
+tags: [<tag>, <tag>, …]            # 선택
+timestamp: <ISO 8601 datetime>     # qooing 필수 (마지막 의미있는 변경 시각)
 # … 그 외 producer 정의 key/value
 ---
 ```
@@ -94,19 +95,28 @@ concept 종류를 식별하는 짧은 문자열. consumer가 routing·filtering�
 
 | 디렉토리 | `type` 값 | 의미 |
 | --- | --- | --- |
-| `references/` | `Reference` | 공신력 있는 공개 가이드 등 외부 참조 자료 |
-| `sources/` | `Source` | 직접 모은 출처 문서 (producer의 fetch 입력) |
+| `references/` | `Reference` | 발행처 단위 신뢰 registry |
+| `sources/` | `Source` | 구체 문서 본문과 provenance를 보존한 producer 입력 |
 | `wiki/` | `Wiki` | LLM이 consolidation한 최종 위키 문서 |
 
-### 4.2 Recommended (우선순위 순)
+Reference의 단위, reliability, index와 audit event는
+[Reference 타입 스펙](2026-08-12-reference-type.md)이 정의한다.
 
-- **`title`** — 사람이 읽는 표시 이름. 없으면 consumer가 filename에서 유도할 수 있다.
+### 4.2 qooing 공통 필수 metadata
+
+- **`title`** — 사람이 읽는 표시 이름.
 - **`description`** — 한 문장 요약. `index.md` 생성기·검색 스니펫·프리뷰가 사용한다.
-- **`resource`** — 원본 asset을 유일하게 식별하는 URI. 추상 개념을 기술하는 concept에는 없을 수 있다.
-- **`tags`** — cross-cutting 분류용 짧은 문자열 YAML 리스트.
 - **`timestamp`** — 마지막 의미있는 변경의 ISO 8601 datetime.
 
-### 4.3 타입별 예시
+`Reference`와 `Source`는 추가로 `resource`가 필수다. Reference의 `reliability`, Source의
+`reference`, Wiki의 `sources`처럼 타입별 필수 필드는 각 타입 규칙과 validator가 정의한다.
+
+### 4.3 선택 metadata
+
+- **`tags`** — cross-cutting 분류용 짧은 문자열 YAML 리스트.
+- 그 외 producer-defined key/value.
+
+### 4.4 타입별 provenance
 
 `wiki/newborn-sleep.md`:
 
@@ -117,20 +127,20 @@ title: 신생아 수면 패턴
 description: 0~3개월 아기의 수면 주기와 밤중 수유 가이드
 sources:                           # producer 필드 (citation 보조)
   - /sources/aap-sleep.md
-  - /references/who-infant-care.md
 tags: [수면, 신생아]
 timestamp: 2026-06-20T09:00:00Z
 ---
 ```
 
-`references/who-infant-care.md`:
+`sources/aap-sleep.md`:
 
 ```yaml
 ---
-type: Reference
-title: WHO 영아 돌봄 가이드
-description: 세계보건기구의 0~12개월 영아 돌봄 권고
-resource: https://www.who.int/publications/...
+type: Source
+title: AAP Safe Sleep Recommendations
+description: AAP의 구체적인 안전 수면 권고 문서 보존본
+resource: https://publications.aap.org/pediatrics/article/...
+reference: /references/aap.md
 timestamp: 2026-06-20T09:00:00Z
 ---
 ```
@@ -166,8 +176,9 @@ consumer는 **broken link를 tolerate해야 한다 (MUST)** — 대상이 번들
 
 ### 5.4 Citation
 
-`wiki/` concept은 body의 주장을 뒷받침하기 위해 `sources/`·`references/`의 concept을 링크로 인용한다 (citation).
-frontmatter의 `sources` 필드는 이 citation을 기계가 읽기 쉽게 보조하는 producer 필드다.
+`wiki/` concept은 body의 주장을 뒷받침하는 구체 문서인 `sources/` concept을 인용한다.
+각 Source는 `reference` frontmatter로 발행처 registry를 가리킨다. 따라서 기본 provenance는
+`Wiki -> Source -> Reference`다. Wiki의 `sources` 필드는 citation을 기계가 읽게 한다.
 
 ## 6. Index Files (필수)
 
@@ -199,25 +210,25 @@ frontmatter의 `sources` 필드는 이 citation을 기계가 읽기 쉽게 보�
 > 참조 자료의 신뢰성(reliability) 관련 결정을 audit log로 남기기 위함. 그 외 디렉토리에서는 optional.
 
 - date heading은 ISO 8601 `YYYY-MM-DD` 형식이어야 한다 (MUST).
-- entry는 prose다. 선두 bold 단어(**Update**, **Creation**, **Deprecation** 등)는 convention이지 강제는 아니다.
+- entry는 prose다. Reference event 어휘는
+  [Reference 타입 스펙](2026-08-12-reference-type.md)을 따른다.
 
 예시 (`knowledge_base/references/log.md`):
 
 ```markdown
-# References Update Log
+# References Log
 
 ## 2026-06-20
-* **Creation**: [WHO 영아 돌봄 가이드](/references/who-infant-care.md) 추가. 1차 출처로 신뢰성 확인.
-* **Update**: [AAP 수면 권고](/references/aap-sleep.md)를 2026 개정판으로 갱신.
+* **Register**: [WHO](/references/who.md) 등록. 국제 공공보건기관으로 **확실**.
 
 ## 2026-06-15
-* **Deprecation**: 출처 불명으로 [블로그 발췌](/references/blog-excerpt.md) 신뢰 등급 강등.
+* **Unregister**: 출처 불명으로 [블로그](/references/blog.md) 제거.
 ```
 
 ## 8. Producer / Consumer (참고)
 
-- **Producer**: repo 루트 `knowledge_producer/` (`topics.yaml` + `SKILL.md` 기반 agent skill). 주제 선정 →
-  `references/`·`sources/`에서 fetch → consolidation → `wiki/<slug>.md` 작성. `index.md`도 여기서 생성한다.
+- **Producer**: repo 루트 `knowledge_producer/`의 역할별 agent skill과 결정적 Python 도구. 자세한 경계는
+  [Knowledge Producer 스펙](2026-08-12-knowledge-producer.md)을 따른다.
 - **Consumer**: 백엔드 Pydantic AI 에이전트가 `list_wiki()`/`read_wiki(slug)` 툴로 `wiki/`를 탐색·소비한다.
 
 두 쪽은 이 포맷만 contract로 공유하며 독립적이다.

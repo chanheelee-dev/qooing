@@ -24,7 +24,8 @@ the knowledge-bundle format.
 
 모든 bundle 디렉터리에 `index.md`가 필요하며 `references/`에는 최신순 reliability
 `log.md`가 필요하다. concept은 디렉터리에 맞는 `type`, `title`, `description`,
-ISO 8601 `timestamp`를 갖는다. Wiki의 `sources`는 존재하는 bundle-root 절대 경로다.
+ISO 8601 `timestamp`를 갖는다. Reference는 `resource`와 `reliability`, Source는 구체 문서
+`resource`와 발행처를 가리키는 `reference`, Wiki는 Source만 가리키는 `sources`를 갖는다.
 bundle 내부 symbolic link는 validation과 index 생성을 모두 거부한다.
 
 - `qooing-kb validate <bundle>`: 모든 위반을 모아 출력하고 위반 시 exit 1.

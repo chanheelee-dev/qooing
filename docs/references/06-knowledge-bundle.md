@@ -11,8 +11,8 @@ content.
 
 ## qooing rules
 
-`references/`는 신뢰 판단을 audit log와 함께 기록하고, `sources/`는 직접 수집한 입력,
-`wiki/`는 consolidated output이다. 모든 directory에 `index.md`, reference scope에
+`references/`는 발행처 신뢰 판단을 audit log와 함께 기록하고, `sources/`는 구체 문서와
+그 발행처 연결을 보존하며, `wiki/`는 Source를 인용한 consolidated output이다. 모든 directory에 `index.md`, reference scope에
 `log.md`, 모든 concept에 directory와 맞는 `type`이 필요하다.
 audit log의 date heading은 `YYYY-MM-DD` 최신순이고 bundle 내부 symbolic link는 허용하지 않는다.
 
@@ -24,6 +24,7 @@ uv run --package qooing-producer qooing-kb index knowledge_base
 ## Common mistakes
 
 - wiki body 주장에는 citation이 있지만 frontmatter `sources`를 갱신하지 않는 문제.
+- Wiki에서 구체 Source를 건너뛰고 발행처 Reference를 곧바로 근거로 삼는 문제.
 - bundle-root link `/references/x.md`를 filesystem root로 해석하는 문제.
 - generator 실행 후 검증하지 않아 깨진 source를 놓치는 문제.
 

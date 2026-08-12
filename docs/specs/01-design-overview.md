@@ -71,10 +71,10 @@ qooing/
   LICENSE                   # AGPL-3.0
   knowledge_base/           # 위키 지식베이스 = 번들 (concept 전용)
     index.md                # 필수. 번들 루트 디렉토리 목록.
-    references/             # type: Reference — 공신력 있는 공개 가이드 등 참조 자료
+    references/             # type: Reference — 발행처 단위 신뢰 registry
       index.md              #   필수.
       log.md                #   필수. 신뢰성 결정 audit log.
-    sources/                # type: Source — 직접 모은 출처 문서 (스킬의 입력)
+    sources/                # type: Source — 구체 문서를 보존한 producer 입력
       index.md              #   필수.
     wiki/                   # type: Wiki — 생성된 위키 (마크다운, frontmatter 포함) — 커밋됨
       index.md              #   필수.
@@ -82,8 +82,8 @@ qooing/
   knowledge_producer/       # 위키 구축(producer) — 번들 밖. 별도 uv 워크스페이스 멤버
     pyproject.toml          #   자체 의존성 (fetch·파서 등, backend와 격리)
     topics.yaml             #   큐레이션한 주제 목록
-    SKILL.md                #   주제→fetch(references/·sources/)→consolidation→wiki/*.md 작성 절차
-    src/                    #   보조 코드 (fetch, index.md 생성 등) — 구현 TBD
+    skills/                 #   register-reference, fetch-source, write-wiki 판단 절차
+    src/                    #   bundle validation과 index 생성 코드
   backend/                  # 별도 uv 워크스페이스 멤버 (런타임)
     app/
       main.py               # FastAPI 앱
@@ -103,17 +103,17 @@ qooing/
 
 > `knowledge_base/`의 포맷(디렉토리·frontmatter·index/log 규칙)은 OKF 기반 스펙
 > `docs/specs/02-knowledge-base-spec.md`가 권위를 가진다.
-> `references/`(type: Reference, 공신력 있는 공개 가이드) vs `sources/`(type: Source, 직접 모은 자료)는
-> 둘 다 producer의 fetch 입력이며, `knowledge_producer/`는 concept이 아니므로 번들(`knowledge_base/`) 밖 repo 루트에 둔다.
+> `references/`는 발행처의 신뢰 판단, `sources/`는 구체 문서의 보존, `wiki/`는 Source를
+> 인용한 최종 산출물이다. `knowledge_producer/`는 concept이 아니므로 번들 밖 repo 루트에 둔다.
 
 ## 컴포넌트 설계
 
 ### 1. 위키 구축 = **agent skill 중심 + 보조 코드** (`knowledge_producer/`, 번들 밖, 별도 uv 워크스페이스 멤버)
 
-- consolidation 등 판단이 필요한 단계는 **스킬 절차를 따라 에이전트가 수행.** fetch·`index.md` 생성처럼 결정적인 단계는 `src/`의 Python 보조 코드로 처리(구현 TBD).
+- consolidation 등 판단이 필요한 단계는 **스킬 절차를 따라 에이전트가 수행.** validation과 `index.md` 생성처럼 결정적인 단계는 `src/`의 Python 보조 코드로 처리한다.
 - backend와 의존성을 격리하기 위해 자체 `pyproject.toml`을 가진 워크스페이스 멤버로 둔다. build-time 전용이라 backend 런타임 이미지에 섞이지 않는다.
 - `topics.yaml`: 큐레이션한 주제 목록 (slug, 제목, 키워드, 출처 힌트).
-- `SKILL.md`: "주제 1개 → `references/`·`sources/`에서 자료 수집 → consolidation → `knowledge_base/wiki/<slug>.md` 작성" 절차 정의. frontmatter는 KB 스펙(`docs/specs/02-knowledge-base-spec.md`)을 따름: `type: Wiki`(필수), `title`, `description`, `sources`, `timestamp`. `index.md`도 갱신.
+- `skills/`: `register-reference` → `fetch-source` → `write-wiki`로 판단 절차와 쓰기 소유권을 분리한다. 상세 맵은 [Knowledge Producer 스펙](2026-08-12-knowledge-producer.md)을 따른다.
 - 사용: 위키가 필요하면 그 스킬을 호출해 주제별로 문서를 생성·커밋. (자동화 코드는 추후 필요 시.)
 
 ### 2. 백엔드 (`backend/`, FastAPI + Pydantic AI)
